@@ -15,7 +15,7 @@
 ## 📌 Project Overview
 This project involves a comprehensive data mining analysis of a board game dataset. The study covers the entire data mining pipeline, from data preparation and feature engineering to the application of unsupervised and supervised machine learning techniques. 
 
-The original dataset comprised 21,926 board games rated by an online community. After rigorous cleaning (handling outliers, logic inconsistencies, and imputing missing values via a category-aware median strategy), the final dataset was refined to 19,729 records and 25 highly informative attributes.
+The original dataset comprised 21,926 board games rated by an online community. After rigorous cleaning (handling outliers, logic inconsistencies, and imputing missing values via a category-aware median strategy), the final dataset was refined to 19,728 records and 25 highly informative attributes.
 
 ## 🚀 Key Findings & Models
 
@@ -42,7 +42,7 @@ The original Data Mining pipeline dropped the free-text `Description` field to f
 * **Lexical baseline (BM25):** an inverted index over the tokenized descriptions (`rank_bm25`), used both as a standalone baseline and as one half of the candidate pool for later stages.
 * **Dense retrieval (FAISS):** descriptions are embedded with `all-MiniLM-L6-v2` (`sentence-transformers`) and indexed with an approximate k-NN HNSW index (`faiss`), enabling semantic matches BM25 misses (e.g. "space betrayal game" retrieving thematically relevant titles with little keyword overlap).
 * **Learning-to-Rank re-ranking:** candidates from BM25 + FAISS are pooled and re-ranked with a **Ridge regression** trained on relevance labels, using BM25 score, semantic similarity, community rating, and popularity as features.
-* **Evaluation ground truth:** since no real user click data exists for this dataset, relevance judgments (qrels) for 25 test queries were generated with an **LLM-as-a-Judge** approach (`gemini-3.5-flash-lite`) rather than by hand. The LLM ranks pooled candidates per query, and 0-3 relevance labels are derived from fixed rank buckets (rather than asked for directly) to keep label distributions comparable across queries. Metrics (MRR, NDCG@5) are reported on a held-out 30% split of these queries.
+* **Evaluation ground truth:** since no real user click data exists for this dataset, relevance judgments (qrels) for 25 test queries were generated with an **LLM-as-a-Judge** approach (`gemini-3.5-flash-lite`) rather than by hand. The LLM ranks pooled candidates per query, and 0-3 relevance labels are derived from fixed rank buckets (rather than asked for directly) to keep label distributions comparable across queries. Metrics (MRR, NDCG@5) are reported on a held-out 20% split of these queries.
 * **Known limitation:** 25 LLM-generated qrels is a small, single-judge ground truth - useful for demonstrating the evaluation methodology end-to-end, but not a substitute for human-annotated or real-interaction-based relevance data at production scale.
 
 ---
