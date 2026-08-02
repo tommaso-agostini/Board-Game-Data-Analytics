@@ -4,9 +4,12 @@
 [![Machine Learning](https://img.shields.io/badge/Machine%20Learning-Scikit--Learn%20%7C%20Pandas-orange)](#)
 [![Status](https://img.shields.io/badge/Status-Expanding_with_IR-green)](#)
 
-> **Authors:** Tommaso Agostini, Elisa Calabrese
-> *This project was originally developed for the Data Mining course at the University of Pisa (A.Y. 2025/2026). I have subsequently refactored and enhanced the codebase for my personal portfolio.*
-> 
+> **Original Data Mining project (notebooks 0-5):** Tommaso Agostini, Elisa Calabrese
+> *Developed for the Data Mining course at the University of Pisa (A.Y. 2025/2026).*
+>
+> **Information Retrieval extension (notebooks 6-8):** Tommaso Agostini (solo)
+> *Designed, implemented, and documented independently as an addition to the original coursework, for my personal portfolio - not part of the original group submission.*
+>
 > 📄 **[Read the full Original Project Report (PDF)](ProjectReport_DM1.pdf)**
 
 ## 📌 Project Overview
