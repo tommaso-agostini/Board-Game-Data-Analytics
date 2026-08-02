@@ -1,6 +1,26 @@
 .idea/
-.venv/
 notebooks/old_files/
-.env
-data/faiss_index.bin
 data/game_features.parquet
+
+# Environment
+.venv/
+__pycache__/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Generated caches (rebuilt automatically, see notebook markdown cells)
+data/embeddings.npy
+data/faiss_index.bin
+data/tokens.pkl
+
+# Raw/intermediate data (se troppo grandi o non tuoi da ridistribuire)
+data/*.csv
+
+# Debug artifacts from LLM annotation (keep automated_qrels.json, drop the raw dump)
+automated_qrels_raw.json
+automated_qrels_smoketest_backup.json
+automated_qrels_raw_smoketest_backup.json
+automated_qrels_mixed_backup.json
+automated_qrels_raw_mixed_backup.json
