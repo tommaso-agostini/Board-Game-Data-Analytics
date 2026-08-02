@@ -1,3 +1,6 @@
 .idea/
 .venv/
 notebooks/old_files/
+.env
+data/faiss_index.bin
+data/game_features.parquet
