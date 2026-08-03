@@ -22,22 +22,17 @@ import google.generativeai as genai
 
 load_dotenv()
 
-# ==========================================
 # 0. ENVIRONMENT & NLTK SETUP
-# ==========================================
 # Download required NLTK data quietly if not already present
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
-# It is highly recommended to set your API key as an environment variable in your terminal:
-# export GEMINI_API_KEY="your_actual_key"
+# Set your API key as an environment variable in your terminal:
 API_KEY = os.environ.get("GEMINI_API_KEY", "INSERT_YOUR_API_KEY_HERE")
 
-# ==========================================
 # CONFIGURATION
-# ==========================================
 DRY_RUN = False
 MAX_RETRIES = 3
 BASE_BACKOFF_SECONDS = 20
@@ -51,9 +46,7 @@ N_SCORE_1 = 6   # next 6 games -> "Partially Relevant"
 qrels_file = '../data/evaluation/automated_qrels.json'
 raw_responses_file = '../data/evaluation/automated_qrels_raw.json'
 
-# ==========================================
 # 1. LOAD DATA & INITIALIZE ENGINES
-# ==========================================
 print("Loading datasets...")
 try:
     df_clean = pd.read_csv('../data/cleaned_dataset.csv')
@@ -90,9 +83,7 @@ dimension = embeddings.shape[1]
 index = faiss.IndexHNSWFlat(dimension, 32)
 index.add(embeddings)
 
-# ==========================================
 # 2. SEARCH FUNCTIONS
-# ==========================================
 def search_games_bm25(query, top_k=5):
     query_tokens = preprocess_text(query)
     doc_scores = bm25.get_scores(query_tokens)
@@ -122,9 +113,7 @@ def search_and_rerank_ltr(query, top_candidates=50, final_top_k=5):
     
     return candidates.sort_values(by='final_ltr_score', ascending=False).head(final_top_k)
 
-# ==========================================
 # 3. HELPER FUNCTIONS FOR LLM
-# ==========================================
 def ranking_to_scores(ranked_names, n3=N_SCORE_3, n2=N_SCORE_2, n1=N_SCORE_1):
     scores = {}
     for i, name in enumerate(ranked_names):
@@ -163,9 +152,7 @@ def parse_ranking_response(raw_text, pooled_names):
         corrected.append(match[0] if match else name)
     return corrected
 
-# ==========================================
 # 4. MAIN BATCH JOB EXECUTION
-# ==========================================
 def main():
     genai.configure(api_key=API_KEY)
 
