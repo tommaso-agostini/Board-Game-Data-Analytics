@@ -37,31 +37,48 @@ Using the Apriori algorithm (min support 5%, min confidence 70%), we extracted f
 * **Insight:** High-lift rules (> 5.0) accurately characterized the "Wargames" genre as being tightly associated with very long playtimes, high complexity, and low player counts. Used as a manual classifier, this rule alone achieved a 75% precision.
 
 ### 5. Information Retrieval (Searching by Natural Language)
-The original Data Mining pipeline dropped the free-text `Description` field to focus on numerical/categorical features. This extension recovers it and builds a small search engine on top, comparing three retrieval strategies of increasing sophistication:
+The original Data Mining pipeline dropped the free-text `Description` field to focus on numerical and categorical features. This extension restores the natural-language descriptions and builds a retrieval pipeline that progresses from lexical retrieval to dense retrieval, heuristic hybrid retrieval, and finally Learning-to-Rank.
 
-* **Lexical baseline (BM25):** an inverted index over the tokenized descriptions (`rank_bm25`), used both as a standalone baseline and as one half of the candidate pool for later stages.
-* **Dense retrieval (FAISS):** descriptions are embedded with `all-MiniLM-L6-v2` (`sentence-transformers`) and indexed with an approximate k-NN HNSW index (`faiss`), enabling semantic matches BM25 misses (e.g. "space betrayal game" retrieving thematically relevant titles with little keyword overlap).
-* **Learning-to-Rank re-ranking:** candidates from BM25 + FAISS are pooled and re-ranked with a **Ridge regression** trained on relevance labels, using BM25 score, semantic similarity, community rating, and popularity as features.
-* **Evaluation ground truth:** since no real user click data exists for this dataset, relevance judgments (qrels) for 25 test queries were generated with an **LLM-as-a-Judge** approach (`gemini-3.5-flash-lite`) rather than by hand. The LLM ranks pooled candidates per query, and 0-3 relevance labels are derived from fixed rank buckets (rather than asked for directly) to keep label distributions comparable across queries. Metrics (MRR, NDCG@5) are reported on a held-out 20% split of these queries.
-* **Known limitation:** 25 LLM-generated qrels is a small, single-judge ground truth - useful for demonstrating the evaluation methodology end-to-end, but not a substitute for human-annotated or real-interaction-based relevance data at production scale.
+The natural description (`Description_nat`) is the common textual source for both BM25 and dense retrieval, keeping the retrieval stages methodologically consistent.
+
+* **BM25 baseline (NB6):** tokenized `Description_nat` documents are indexed with `rank_bm25`. The resulting `tokens.pkl` cache is reused by later stages.
+* **Dense retrieval (NB7):** `Description_nat` is encoded with `all-MiniLM-L6-v2` (`sentence-transformers`) and stored in `embeddings_nat.npy`. An approximate FAISS HNSW index is built for semantic retrieval.
+* **LLM-as-a-Judge qrels:** because no real user click data exists for this dataset, relevance judgments are generated for 100 natural-language queries. For each query, the candidate pool is the union of BM25 top-20 and dense top-20 results. Gemini ranks the candidates by `BGGId`; fixed rank buckets are then converted into relevance labels (top 2 → 3, next 6 → 2, next 8 → 1, remaining → 0). The resulting `expanded_qrels_v4.json` is used as the frozen evaluation ground truth.
+* **Heuristic hybrid retrieval (NB8):** BM25 and dense retrieval are combined through a heuristic reranking stage and evaluated on the full 19,728-game corpus. This is an intermediate hybrid-retrieval baseline, not Learning-to-Rank.
+* **Learning-to-Rank (NB9):** the qrels-v4 candidate pool is reranked with a pointwise Ridge model using BM25 score, semantic distance, normalized rating, and normalized popularity. The model is trained and evaluated with query-grouped 5-fold cross-validation, avoiding query leakage between train and test folds.
+
+The evaluation uses MRR and NDCG@5. The two final stages have different evaluation scopes: NB8 measures retrieval over the full corpus, while NB9 measures reranking quality inside the frozen judged candidate pool. Their absolute metrics should therefore not be interpreted as a direct apples-to-apples comparison.
+
+**NB8 full-corpus evaluation:**
+* BM25: **MRR 0.817**, **NDCG@5 0.397**
+* Heuristic Hybrid: **MRR 0.827**, **NDCG@5 0.374**
+
+**NB9 5-fold query-grouped evaluation:**
+* BM25 candidate-pool baseline: **MRR 0.822**, **NDCG@5 0.399**
+* Ridge LTR: **MRR 0.894**, **NDCG@5 0.502**
+* Improvement over the candidate-pool BM25 baseline: **+0.072 MRR**, **+0.103 NDCG@5**
+
+**Known limitations:** the qrels are LLM-generated and therefore represent a proxy for human relevance judgments. The evaluation also uses a fixed candidate-generation strategy and a relatively small judged set compared with the full corpus. The qrels generator is resumable and uses deterministic model settings, retries, and coverage checks, but it should not be treated as a substitute for human annotation or real interaction data.
 
 ---
 
 ## 📂 Repository Structure
-* **`data/`**: Raw dataset, cleaned versions, and generated association rules.
-  * Generated at runtime and **not** committed (see `.gitignore`): `embeddings.npy`, `faiss_index.bin`, `tokens.pkl` - these are deterministic caches, rebuilt automatically on first run of the relevant notebook.
-  * **`data/evaluation/`**: `automated_qrels.json` (the LLM-generated evaluation ground truth) **is** committed, since it's small and is itself a project artifact worth reviewing. `automated_qrels_raw.json` (the cached raw LLM responses, used only for debugging/recovery) is **not** committed.
+* **`data/`**: Raw dataset, cleaned versions, association rules, and generated retrieval artifacts.
+  * Runtime caches are **not** committed (see `.gitignore`): `tokens.pkl`, `embeddings_nat.npy`, and `faiss_index.bin`.
+  * **`data/expanded_qrels_v4.json`** (or the repository's configured evaluation path): the frozen LLM-generated qrels used by NB8/NB9.
+  * Raw/checkpoint LLM responses are not required for normal evaluation and should not be committed.
 * **`notebooks/`**:
   * `0_data_understanding.ipynb`: EDA and feature correlations.
-  * `1_data_preparation.ipynb`: Missing values imputation, encoding, and scaling (log1p).
-  * `2_clustering.ipynb`: Unsupervised functional partitions.
-  * `3_classification.ipynb`: Binary and Multiclass predictions.
+  * `1_data_preparation.ipynb`: Missing-value imputation, encoding, and scaling.
+  * `2_clustering.ipynb`: Unsupervised clustering.
+  * `3_classification.ipynb`: Binary and multiclass prediction.
   * `4_regression.ipynb`: Continuous target estimation.
   * `5_pattern_mining.ipynb`: Apriori and frequent itemsets.
-  * `6_information_retrieval_baseline.ipynb`: BM25 lexical search baseline.
-  * `7_neural_ir_faiss.ipynb`: dense retrieval with sentence embeddings + FAISS.
-  * `8_learning_to_rank.ipynb`: candidate pooling, LLM-as-a-Judge qrel generation, and the Ridge re-ranker, with the final BM25-vs-LTR evaluation.
-* **`scripts/generate_qrels.py`**: standalone batch script that calls the Gemini API to generate `data/evaluation/automated_qrels.json`. Run separately from the notebooks (see below) so the API key never needs to touch a notebook cell.
+  * `6_information_retrieval_baseline.ipynb`: BM25 baseline over `Description_nat`; creates the token cache.
+  * `7_neural_ir_faiss.ipynb`: dense retrieval over `Description_nat`; creates the embedding cache and FAISS index.
+  * `8_hybrid_retrieval_and_evaluation.ipynb`: full-corpus BM25 retrieval, heuristic hybrid reranking, and evaluation.
+  * `9_learning_to_rank.ipynb`: actual pointwise Ridge Learning-to-Rank with query-grouped cross-validation and ablation analysis.
+* **`scripts/generate_qrels_v4.py`**: standalone Gemini batch script that builds the frozen qrels from the BM25 top-20 ∪ dense top-20 candidate pools. It consumes the NB6/NB7 artifacts and does not regenerate embeddings.
 
 ---
 
@@ -75,27 +92,73 @@ The original Data Mining pipeline dropped the free-text `Description` field to f
 2. Create a virtual environment and install the dependencies:
    ```bash
    python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   source .venv/bin/activate
    pip install -r requirements.txt
    ```
 
-3. Place the raw dataset files in `data/` (`cleaned_dataset.csv`, `DM1_game_dataset.csv`) - see `data/README.md` for the source if you don't already have them.
+3. Place the raw dataset files in `data/` (`cleaned_dataset.csv`, `DM1_game_dataset.csv`) and follow `data/README.md` for the data source.
 
-4. Run the notebooks 0 through 5 in order for the original Data Mining pipeline (clustering, classification, regression, pattern mining).
+4. Run notebooks 0 through 5 in order for the original Data Mining pipeline.
 
-### Running the Information Retrieval extension (notebooks 6-8)
+### Running the Information Retrieval extension (notebooks 6-9)
 
-5. Set your Gemini API key as an environment variable (used only by `scripts/generate_qrels.py`, never hardcoded in any notebook):
+5. Set the Gemini API key as an environment variable. It is used only by the qrels-generation script:
    ```bash
-   export GEMINI_API_KEY="your-key-here"  # Windows: set GEMINI_API_KEY=your-key-here
+   export GEMINI_API_KEY="your-key-here"
    ```
-   Get a free-tier key at [Google AI Studio](https://aistudio.google.com/apikey). The script is written to work with the free tier's rate limits (built-in throttling, retries, and checkpointing - safe to interrupt and resume).
-
-6. Run `6_information_retrieval_baseline.ipynb` and `7_neural_ir_faiss.ipynb` (in either order - they share the same embeddings/FAISS cache, so encoding the ~20k descriptions only happens once, in whichever you run first).
-
-7. Generate the evaluation ground truth (skips this step and reuses `data/evaluation/automated_qrels.json` if it's already present):
-   ```bash
-   python scripts/generate_qrels.py
+   On Windows:
+   ```powershell
+   set GEMINI_API_KEY=your-key-here
    ```
 
-8. Run `8_learning_to_rank.ipynb` for the candidate pooling, the trained Ridge re-ranker, and the final BM25-vs-LTR comparison on the held-out test queries.
+6. Run NB6 and NB7 to create the shared retrieval artifacts:
+   ```text
+   NB6 → data/tokens.pkl
+   NB7 → data/embeddings_nat.npy + data/faiss_index.bin
+   ```
+   The notebooks reuse existing caches when available.
+
+7. Generate the frozen qrels:
+   ```bash
+   python scripts/generate_qrels_v4.py
+   ```
+   The script uses the BM25 top-20 ∪ dense top-20 pool, Gemini ranking, fixed relevance buckets, retries, and checkpointing. Re-running it resumes from `expanded_qrels_v4.json`.
+
+8. Run NB8 for full-corpus retrieval evaluation:
+   ```text
+   NB8 → BM25 vs Heuristic Hybrid
+   ```
+
+9. Run NB9 for actual Learning-to-Rank:
+   ```text
+   NB9 → Ridge LTR + 5-fold query-grouped CV + ablations
+   ```
+
+The intended dependency chain is:
+
+```text
+cleaned_dataset.csv + DM1_game_dataset.csv + details.csv
+                         │
+                         ▼
+              Description_nat
+                 ┌───────┴───────┐
+                 ▼               ▼
+                NB6             NB7
+                 │               │
+          tokens.pkl       embeddings_nat.npy
+                                 │
+                                 ▼
+                         FAISS HNSW index
+                 └───────┬───────┘
+                         ▼
+                generate_qrels_v4.py
+                         │
+                         ▼
+                  expanded_qrels_v4
+                    ┌────┴────┐
+                    ▼         ▼
+                   NB8       NB9
+                retrieval    LTR
+                evaluation  reranking
+```
+
