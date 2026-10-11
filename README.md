@@ -85,7 +85,7 @@ The evaluation uses MRR and NDCG@5. The two final stages have different evaluati
 ## 🛠️ How to Run
 1. Clone the repository:
    ```bash
-   git clone https://github.com/ecalabrese17/Board-Game-Data-Analytics.git
+   git clone https://github.com/tommaso-agostini/Board-Game-Data-Analytics.git
    cd Board-Game-Data-Analytics
    ```
 
